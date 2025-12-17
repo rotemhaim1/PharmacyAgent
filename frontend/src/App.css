@@ -1,0 +1,104 @@
+.page {
+  width: min(1000px, 100%);
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.title {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding: 6px;
+  flex: 1;
+  min-height: 0;
+}
+
+.msg {
+  display: flex;
+}
+
+.msg.user {
+  justify-content: flex-end;
+}
+
+.bubble {
+  max-width: 80%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  white-space: pre-wrap;
+  color: #eef1f6;
+}
+
+.msg.user .bubble {
+  background: rgba(100, 108, 255, 0.18);
+  border-color: rgba(100, 108, 255, 0.35);
+  color: #f4f6ff;
+}
+
+.status {
+  font-size: 13px;
+  opacity: 0.8;
+  padding: 0 6px;
+}
+
+.composer {
+  display: flex;
+  gap: 10px;
+  padding: 6px;
+}
+
+.composer input {
+  flex: 1;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.12);
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.composer input:disabled {
+  opacity: 0.6;
+}
+
+

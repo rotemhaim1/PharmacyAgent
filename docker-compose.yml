@@ -1,0 +1,16 @@
+services:
+  pharmacy-agent:
+    build: .
+    image: pharmacy-agent:latest
+    ports:
+      - "8000:8000"
+    environment:
+      # Persist DB in a named Docker volume
+      - DATABASE_URL=sqlite:////data/app.db
+    volumes:
+      - pharmacy_db:/data
+
+volumes:
+  pharmacy_db:
+
+
