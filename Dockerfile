@@ -21,7 +21,7 @@ COPY backend/ /app/backend/
 COPY --from=frontend_build /work/frontend/dist /app/frontend_dist
 COPY api-key.txt /app/api-key.txt
 COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+RUN tr -d '\r' < /app/entrypoint.sh > /app/entrypoint.sh.tmp && mv /app/entrypoint.sh.tmp /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 EXPOSE 8000
 ENTRYPOINT ["/app/entrypoint.sh"]
