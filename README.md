@@ -69,25 +69,25 @@ The agent is designed with strict safety guardrails to provide factual informati
 ```mermaid
 flowchart TB
     User[👤 User Browser]
-    Frontend[React Frontend<br/>TypeScript + Vite]
-    Backend[FastAPI Backend<br/>Python 3.11]
-    Agent[Agent Loop<br/>stream_chat]
-    OpenAI[OpenAI API<br/>GPT-4/5]
-    DB[(SQLite DB<br/>Users, Meds, Inventory)]
+    Frontend["React Frontend<br/>TypeScript + Vite"]
+    Backend["FastAPI Backend<br/>Python 3.11"]
+    Agent["Agent Loop<br/>stream_chat"]
+    OpenAI["OpenAI API<br/>GPT-4/5"]
+    DB[("SQLite DB<br/>Users, Meds, Inventory")]
     
-    User -->|Login/Signup| Frontend
-    Frontend -->|POST /auth/login<br/>POST /auth/signup| Backend
-    Backend -->|JWT Token| Frontend
-    Frontend -->|POST /chat/stream<br/>Bearer Token + messages[]| Backend
-    Backend -->|Validate JWT<br/>Extract user_id| Backend
+    User -->|"Login/Signup"| Frontend
+    Frontend -->|"POST /auth/login<br/>POST /auth/signup"| Backend
+    Backend -->|"JWT Token"| Frontend
+    Frontend -->|"POST /chat/stream<br/>Bearer Token + messages"| Backend
+    Backend -->|"Validate JWT<br/>Extract user_id"| Backend
     Backend --> Agent
-    Agent -->|Build system prompt<br/>locale_hint| Agent
-    Agent <-->|Stream completions<br/>Tool calls| OpenAI
-    Agent -->|Execute tools<br/>get_medication_by_name<br/>check_inventory<br/>reserve_inventory<br/>etc.| DB
-    DB -->|Query results| Agent
-    Agent -->|SSE: delta, tool_status,<br/>error, done| Backend
-    Backend -->|text/event-stream| Frontend
-    Frontend -->|Update UI<br/>Append tokens| User
+    Agent -->|"Build system prompt<br/>locale_hint"| Agent
+    Agent <-->|"Stream completions<br/>Tool calls"| OpenAI
+    Agent -->|"Execute tools<br/>get_medication_by_name<br/>check_inventory<br/>reserve_inventory"| DB
+    DB -->|"Query results"| Agent
+    Agent -->|"SSE: delta, tool_status<br/>error, done"| Backend
+    Backend -->|"text/event-stream"| Frontend
+    Frontend -->|"Update UI<br/>Append tokens"| User
 ```
 
 ### Data Flow
