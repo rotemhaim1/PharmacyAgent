@@ -83,7 +83,7 @@ flowchart TB
     Backend --> Agent
     Agent -->|"Build system prompt<br/>locale_hint"| Agent
     Agent <-->|"Stream completions<br/>Tool calls"| OpenAI
-    Agent -->|"Execute tools<br/>get_medication_by_name<br/>check_inventory<br/>reserve_inventory"| DB
+    Agent -->|"Execute tools<br/>get_medication_by_name<br/>get_current_user<br/>check_inventory<br/>reserve_inventory<br/>etc."| DB
     DB -->|"Query results"| Agent
     Agent -->|"SSE: delta, tool_status<br/>error, done"| Backend
     Backend -->|"text/event-stream"| Frontend
@@ -324,51 +324,285 @@ def get_user_id_from_token(token: str) -> Optional[str]:
   - Generate with: `openssl rand -hex 32`
 - `ACCESS_TOKEN_EXPIRE_HOURS`: Token expiration (default: 24)
 
-### Frontend ([`frontend/src/App.tsx`](frontend/src/App.tsx), [`frontend/src/lib/sse.ts`](frontend/src/lib/sse.ts))
+### Frontend ([`frontend/src/App.tsx`](frontend/src/App.tsx))
 
-**React Architecture**
-- **Routing**: React Router with 3 routes:
-  - `/` → Login page (redirects to /chat if authenticated)
-  - `/signup` → Registration page
-  - `/chat` → Protected chat interface (requires authentication)
+**Architecture**
+- React + TypeScript + Vite for fast development
+- React Router: 3 routes (`/`, `/signup`, `/chat`)
+- Protected routes with JWT authentication
 
-**SSE Client Implementation**
-```typescript
-// Parse Server-Sent Events stream
-async function* parseSseStream(body: ReadableStream) {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n\n");
-    buffer = lines.pop() || "";
-    
-    for (const chunk of lines) {
-      const [eventLine, dataLine] = chunk.split("\n");
-      const event = eventLine.replace("event: ", "");
-      const data = JSON.parse(dataLine.replace("data: ", ""));
-      yield { event, data };
-    }
-  }
+**SSE Streaming**
+- Custom SSE client parses `text/event-stream` responses
+- Event types: `delta` (token), `tool_status`, `error`, `done`
+- Real-time UI updates with auto-scroll to latest message
+
+**State Management**
+- `messages`: Conversation history
+- `isStreaming`: Disables input during agent response
+- `toolStatus`: Shows current tool execution
+- `localeHint`: User language preference (en/he)
+
+**UI Components**: Topbar (user info, language selector, logout), Messages (scrollable chat), Status indicator, Input composer
+
+## Tool Design Specification
+
+Complete documentation for all 7 tools as required by the assignment:
+
+### 1. get_medication_by_name
+
+**Purpose**: Resolve user-provided medication name (English or Hebrew) to a catalog record with full details.
+
+**Inputs**:
+- `query` (string, required): Medication name or search term
+
+**Output Schema**:
+```json
+{
+  "found": boolean,
+  "medication": {
+    "id": string,
+    "name": string,
+    "name_he": string,
+    "active_ingredients": array,
+    "form": string,
+    "strength": string,
+    "manufacturer": string,
+    "otc_or_rx": "otc" | "rx",
+    "label_instructions": string,
+    "warnings": string
+  } | null,
+  "alternatives": string[],
+  "error": "empty_query" | "not_found" | "ambiguous" | null
 }
 ```
 
-**State Management**
-- `messages`: Array of `{role: "user"|"assistant", content: string}`
-- `isStreaming`: Boolean flag to disable input during streaming
-- `toolStatus`: String showing current tool execution status
-- `localeHint`: User's language preference (synced with backend)
+**Example Responses**:
+- **Success**: `{"found": true, "medication": {"id": "med_001", "name": "Ibuprofen", "form": "tablet", ...}, "alternatives": []}`
+- **Ambiguous**: `{"found": false, "medication": null, "alternatives": ["Ibuprofen 200mg", "Ibuprofen 400mg"], "error": "ambiguous"}`
+- **Not Found**: `{"found": false, "medication": null, "alternatives": [], "error": "not_found"}`
 
-**UI Components**
-- **Topbar**: User name, language selector, Reset button, Logout button
-- **Messages**: Scrollable message list with role-based styling
-- **Status**: Real-time status indicator (Ready / Thinking / Tool execution)
-- **Composer**: Input field + Send button (disabled during streaming)
+**Error Handling**:
+- Returns `empty_query` if query parameter is empty or whitespace-only
+- Returns `not_found` if no matches found in database
+- Returns `ambiguous` with alternatives list when multiple matches exist
+
+**Fallback Behavior**:
+- Brand-name alias mapping (e.g., "Dexamol" → "Paracetamol", "דקסמול" → "פרצטמול")
+- Exact match prioritized over substring match
+- Case-insensitive search for both English (`name`) and Hebrew (`name_he`) fields
+- Substring fallback with 10-result limit if exact match fails
+
+---
+
+### 2. check_inventory
+
+**Purpose**: Check stock availability for a medication across stores or at a specific store.
+
+**Inputs**:
+- `medication_id` (string, required): Medication ID from catalog
+- `store_name` (string, optional): Filter by specific store name
+
+**Output Schema**:
+```json
+{
+  "results": [
+    {
+      "store_name": string,
+      "quantity": number,
+      "status": "out" | "low" | "in_stock"
+    }
+  ],
+  "error": "missing_medication_id" | "unknown_store_or_no_record" | null
+}
+```
+
+**Example Responses**:
+- **All Stores**: `{"results": [{"store_name": "Tel Aviv - Dizengoff", "quantity": 12, "status": "in_stock"}, ...]}`
+- **Single Store**: `{"results": [{"store_name": "Jerusalem - King George", "quantity": 3, "status": "low"}]}`
+- **Out of Stock**: `{"results": [{"store_name": "Haifa - Carmel Center", "quantity": 0, "status": "out"}]}`
+
+**Error Handling**:
+- Returns `missing_medication_id` if medication_id not provided
+- Returns `unknown_store_or_no_record` if store_name specified but no matching records found
+
+**Fallback Behavior**:
+- Case-insensitive store name matching
+- Returns all stores if store_name not specified
+- Status thresholds: `out` (≤0), `low` (<5), `in_stock` (≥5)
+
+---
+
+### 3. check_prescription_requirement
+
+**Purpose**: Determine if a medication requires a prescription (Rx) or is available over-the-counter (OTC).
+
+**Inputs**:
+- `medication_id` (string, required): Medication ID from catalog
+
+**Output Schema**:
+```json
+{
+  "requires_prescription": boolean | null,
+  "notes": string,
+  "error": "missing_medication_id" | "not_found" | null
+}
+```
+
+**Example Responses**:
+- **Rx Required**: `{"requires_prescription": true, "notes": "Prescription required (Rx)."}`
+- **OTC**: `{"requires_prescription": false, "notes": "Over-the-counter (OTC)."}`
+
+**Error Handling**:
+- Returns `missing_medication_id` if medication_id not provided
+- Returns `not_found` if medication ID doesn't exist in catalog
+- Returns `null` for `requires_prescription` on error
+
+**Fallback Behavior**:
+- No fallback; requires valid medication_id
+- Binary check against `otc_or_rx` field in database
+
+---
+
+### 4. get_user_by_phone
+
+**Purpose**: Look up user by phone number for prescription workflows (legacy; prefer `get_current_user`).
+
+**Inputs**:
+- `phone` (string, required): Phone number with country code
+
+**Output Schema**:
+```json
+{
+  "found": boolean,
+  "user": {
+    "id": string,
+    "full_name": string,
+    "preferred_language": string
+  } | null,
+  "error": "invalid_phone" | null
+}
+```
+
+**Example Responses**:
+- **Found**: `{"found": true, "user": {"id": "user_001", "full_name": "John Doe", "preferred_language": "en"}}`
+- **Not Found**: `{"found": false, "user": null}`
+
+**Error Handling**:
+- Returns `invalid_phone` if phone is empty or less than 7 characters
+- Returns `found: false` if phone number not in database
+
+**Fallback Behavior**:
+- Phone normalization: keeps only `+` and digits (removes spaces, dashes, parentheses)
+- Exact match required after normalization
+
+---
+
+### 5. get_current_user
+
+**Purpose**: Retrieve authenticated user's information from JWT token (preferred over `get_user_by_phone`).
+
+**Inputs**:
+- None (user_id extracted from JWT token automatically)
+
+**Output Schema**:
+```json
+{
+  "found": boolean,
+  "user": {
+    "id": string,
+    "full_name": string,
+    "phone": string,
+    "preferred_language": string,
+    "loyalty_id": string | null
+  } | null,
+  "error": "authentication_required" | "user_not_found" | null
+}
+```
+
+**Example Responses**:
+- **Success**: `{"found": true, "user": {"id": "user_001", "full_name": "Rotem Cohen", "phone": "+972501234567", "preferred_language": "he", "loyalty_id": "LOYALTY_001"}}`
+
+**Error Handling**:
+- Returns `authentication_required` if JWT token missing or invalid
+- Returns `user_not_found` if user_id from token doesn't exist in database
+
+**Fallback Behavior**:
+- No fallback; requires valid JWT authentication
+- Agent automatically uses this for prescription requests and reservations
+
+---
+
+### 6. create_prescription_request
+
+**Purpose**: Create a prescription fulfillment request ticket for a user and medication.
+
+**Inputs**:
+- `user_id` (string, required): User ID from `get_current_user` or `get_user_by_phone`
+- `medication_id` (string, required): Medication ID from catalog
+- `pickup_store` (string, optional): Preferred pickup location
+
+**Output Schema**:
+```json
+{
+  "request_id": string | null,
+  "status": "created" | "error",
+  "error": "missing_required_fields" | "unknown_user" | "unknown_medication" | null
+}
+```
+
+**Example Responses**:
+- **Success**: `{"request_id": "ticket_abc123", "status": "created"}`
+- **Error**: `{"request_id": null, "status": "error", "error": "unknown_user"}`
+
+**Error Handling**:
+- Returns `missing_required_fields` if user_id or medication_id not provided
+- Returns `unknown_user` if user_id doesn't exist
+- Returns `unknown_medication` if medication_id doesn't exist
+
+**Fallback Behavior**:
+- Validates both user and medication exist before creating ticket
+- Stores pickup_store in `payload_json` for pharmacist review
+- Creates ticket with type `prescription_request` and status `created`
+
+---
+
+### 7. reserve_inventory
+
+**Purpose**: Reserve inventory for pickup at a specific store (requires authentication).
+
+**Inputs**:
+- `medication_id` (string, required): Medication ID from catalog
+- `store_name` (string, required): Store name for pickup
+- `quantity` (integer, required): Number of units to reserve (minimum: 1)
+- `user_id` (string, auto-injected): User ID from JWT token
+
+**Output Schema**:
+```json
+{
+  "reserved": boolean,
+  "reservation_id": string | null,
+  "reason": "missing_required_fields" | "authentication_required" | "store_or_item_not_found" | "insufficient_stock" | null
+}
+```
+
+**Example Responses**:
+- **Success**: `{"reserved": true, "reservation_id": "ticket_xyz789"}`
+- **Insufficient Stock**: `{"reserved": false, "reason": "insufficient_stock"}`
+- **Store Not Found**: `{"reserved": false, "reason": "store_or_item_not_found"}`
+
+**Error Handling**:
+- Returns `missing_required_fields` if medication_id, store_name, or quantity invalid
+- Returns `authentication_required` if JWT token missing or invalid
+- Returns `store_or_item_not_found` if store doesn't have the medication
+- Returns `insufficient_stock` if quantity requested exceeds available stock
+
+**Fallback Behavior**:
+- Case-insensitive store name matching
+- Atomic inventory decrement (quantity reduced only on successful reservation)
+- Creates ticket with type `inventory_reservation` and status `created`
+- Stores quantity in `payload_json` for fulfillment tracking
+
+---
 
 ## Requirements Mapping
 
@@ -463,18 +697,6 @@ Access the app at `http://localhost:5173` (Vite dev server) or `http://localhost
 
 ### Docker Deployment
 
-**Single Container (Includes Built Frontend)**
-
-```bash
-# Build image
-docker build -t pharmacy-agent .
-
-# Run container
-docker run --rm -p 8000:8000 pharmacy-agent
-```
-
-Access at `http://localhost:8000` (backend serves built frontend).
-
 **Docker Compose (Persistent Database)**
 
 ```bash
@@ -486,86 +708,6 @@ docker compose down
 
 # Reset database (removes volume)
 docker compose down -v
-```
-
-**Windows PowerShell Example**
-```powershell
-# Load API key from file
-$env:OPENAI_API_KEY = (Get-Content .\api-key.txt -Raw).Trim()
-
-# Run with explicit environment variable
-docker run --rm -p 8000:8000 -e OPENAI_API_KEY=$env:OPENAI_API_KEY pharmacy-agent
-```
-
-### Environment Variables
-
-**Backend Configuration**
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENAI_API_KEY` | - | **Required**. OpenAI API key (or use `api-key.txt` file) |
-| `OPENAI_MODEL` | `gpt-5` | Model selection (`gpt-4o`, `gpt-4-turbo`, etc.) |
-| `DATABASE_URL` | `sqlite:///app.db` | SQLite path (Docker: `sqlite:////data/app.db`) |
-| `JWT_SECRET_KEY` | `your-secret-key-change-in-production` | ⚠️ **Change in production!** |
-| `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
-| `FRONTEND_DIST_DIR` | `../frontend/dist` | Path to built frontend (auto-detected in Docker) |
-
-**Frontend Configuration**
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VITE_API_BASE_URL` | `http://localhost:8000` | Backend API URL for dev mode |
-
-**Setting Environment Variables**
-
-```bash
-# Linux/Mac
-export OPENAI_API_KEY="sk-..."
-export JWT_SECRET_KEY=$(openssl rand -hex 32)
-
-# Windows PowerShell
-$env:OPENAI_API_KEY = "sk-..."
-$env:JWT_SECRET_KEY = (openssl rand -hex 32)
-
-# Docker Compose (.env file)
-# Create .env file in repo root:
-OPENAI_API_KEY=sk-...
-JWT_SECRET_KEY=<generated-secret>
-```
-
-### Development Utilities
-
-Helper scripts for database management and debugging:
-
-**Database Viewer** ([`backend/view_db.py`](backend/view_db.py))
-```bash
-cd backend
-python view_db.py
-
-# Interactive menu:
-# 1. View all users
-# 2. View all medications
-# 3. View inventory
-# 4. View prescriptions
-# 5. View tickets
-# 6. Search medication by name
-# 7. Check user prescriptions
-```
-
-See [`README_DB_VIEWER.md`](README_DB_VIEWER.md) for full documentation.
-
-**Database Reset** ([`backend/reset_local_db.py`](backend/reset_local_db.py))
-```bash
-cd backend
-python reset_local_db.py
-# Deletes app.db and reseeds with fresh data
-```
-
-**Delete Records** ([`backend/delete_db_records.py`](backend/delete_db_records.py))
-```bash
-cd backend
-python delete_db_records.py
-# Interactive utility for cleaning specific records
 ```
 
 ## Multi-step Flow Demonstrations
