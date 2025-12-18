@@ -3,12 +3,12 @@ from __future__ import annotations
 from typing import Optional
 
 def build_system_prompt(locale_hint: Optional[str] = None) -> str:
-    locale_hint = (locale_hint or "").strip().lower()
-    language_rule = (
-        "Reply in Hebrew if the user writes in Hebrew; otherwise reply in English."
-        if locale_hint not in {"he", "en"}
-        else ("Reply in Hebrew." if locale_hint == "he" else "Reply in English.")
-    )
+    locale_hint = (locale_hint or "en").strip().lower()
+    if locale_hint == "he":
+        language_rule = "Reply in Hebrew."
+    else:
+        # Default to English for any other value (including "en" or None)
+        language_rule = "Reply in English."
 
     # Core safety/policy requirements from the assignment:
     # - factual only, no diagnosis/advice, no encouragement to purchase, redirect to professional when asked for advice

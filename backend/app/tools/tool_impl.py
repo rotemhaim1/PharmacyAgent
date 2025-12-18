@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -138,13 +138,16 @@ def create_prescription_request(db: Session, args: Dict[str, Any]) -> Dict[str, 
     return {"request_id": t.id, "status": "created"}
 
 
-def reserve_inventory(db: Session, args: Dict[str, Any]) -> Dict[str, Any]:
+def reserve_inventory(db: Session, args: Dict[str, Any], user_id: Optional[str] = None) -> Dict[str, Any]:
     medication_id = (args.get("medication_id") or "").strip()
     store_name = (args.get("store_name") or "").strip()
     quantity = int(args.get("quantity") or 0)
 
     if not medication_id or not store_name or quantity <= 0:
         return {"reserved": False, "reason": "missing_required_fields"}
+
+    if not user_id:
+        return {"reserved": False, "reason": "authentication_required"}
 
     stmt = select(InventoryItem).where(
         (InventoryItem.medication_id == medication_id)
@@ -159,6 +162,7 @@ def reserve_inventory(db: Session, args: Dict[str, Any]) -> Dict[str, Any]:
     item.quantity -= quantity
     t = Ticket(
         type="inventory_reservation",
+        user_id=user_id,
         medication_id=medication_id,
         store_name=item.store_name,
         payload_json=json.dumps({"quantity": quantity}, ensure_ascii=False),

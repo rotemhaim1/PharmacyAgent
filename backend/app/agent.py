@@ -29,11 +29,12 @@ def _load_api_key() -> Optional[str]:
 
 
 async def stream_chat(
-    *, db: Optional[Session], messages: List[Dict[str, Any]], locale_hint: Optional[str]
+    *, db: Optional[Session], messages: List[Dict[str, Any]], locale_hint: Optional[str], user_id: str
 ) -> AsyncIterator[bytes]:
     """
     Stateless agent loop: client sends full conversation each turn.
     Streams assistant tokens via SSE; executes tools when model requests them.
+    user_id: Authenticated user ID (required for reservations).
     """
     api_key = _load_api_key()
     if not api_key:
@@ -127,7 +128,12 @@ async def stream_chat(
                         if db is None:
                             result = {"error": "db_unavailable"}
                         else:
-                            result = fn(db, args)
+                            # Pass user_id to tools that need it (e.g., reserve_inventory)
+                            if tool_name == "reserve_inventory":
+                                from app.tools.tool_impl import reserve_inventory
+                                result = reserve_inventory(db, args, user_id=user_id)
+                            else:
+                                result = fn(db, args)
 
                 yield _sse("tool_status", {"type": "tool_status", "status": "done", "tool": tool_name})
                 working_messages.append(

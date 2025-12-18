@@ -6,6 +6,7 @@ import random
 import uuid
 from typing import List
 
+import bcrypt
 from sqlalchemy import select
 
 from app.db.models import InventoryItem, Medication, Prescription, Ticket, User
@@ -22,6 +23,32 @@ def _now() -> dt.datetime:
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    # Migration: Add password_hash column if it doesn't exist (for existing databases)
+    _migrate_add_password_hash()
+
+
+def _migrate_add_password_hash() -> None:
+    """Add password_hash column to users table if it doesn't exist."""
+    try:
+        from sqlalchemy import inspect, text
+        
+        inspector = inspect(engine)
+        if "users" in inspector.get_table_names():
+            columns = [col["name"] for col in inspector.get_columns("users")]
+            
+            if "password_hash" not in columns:
+                # Add password_hash column
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)"))
+                    # Set default password hash for existing users (password: "password123")
+                    import bcrypt
+                    default_hash = bcrypt.hashpw("password123".encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                    conn.execute(text("UPDATE users SET password_hash = :hash WHERE password_hash IS NULL"), {"hash": default_hash})
+                    conn.commit()
+                print("Migration: Added password_hash column to users table")
+    except Exception as e:
+        # If migration fails, log but don't crash - the app will handle missing column errors
+        print(f"Migration warning: {e}")
 
 
 def seed_if_empty() -> None:
@@ -32,17 +59,21 @@ def seed_if_empty() -> None:
 
         random.seed(1337)
 
+        # Default password for seeded users: "password123"
+        default_password = "password123"
+        password_hash = bcrypt.hashpw(default_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
         users = [
-            User(full_name="Rotem Cohen", phone="+972501000001", preferred_language="he", loyalty_id="L-1001"),
-            User(full_name="Noam Levi", phone="+972501000002", preferred_language="he", loyalty_id="L-1002"),
-            User(full_name="Yael Mizrahi", phone="+972501000003", preferred_language="he", loyalty_id="L-1003"),
-            User(full_name="Daniel Katz", phone="+972501000004", preferred_language="en", loyalty_id="L-1004"),
-            User(full_name="Maya Rosen", phone="+972501000005", preferred_language="en", loyalty_id="L-1005"),
-            User(full_name="Amit Shani", phone="+972501000006", preferred_language="he", loyalty_id="L-1006"),
-            User(full_name="Tamar Azulay", phone="+972501000007", preferred_language="he", loyalty_id="L-1007"),
-            User(full_name="Eitan Peretz", phone="+972501000008", preferred_language="en", loyalty_id="L-1008"),
-            User(full_name="Lior Bar", phone="+972501000009", preferred_language="en", loyalty_id="L-1009"),
-            User(full_name="Shira Gold", phone="+972501000010", preferred_language="he", loyalty_id="L-1010"),
+            User(full_name="Rotem Cohen", phone="+972501000001", password_hash=password_hash, preferred_language="he", loyalty_id="L-1001"),
+            User(full_name="Noam Levi", phone="+972501000002", password_hash=password_hash, preferred_language="he", loyalty_id="L-1002"),
+            User(full_name="Yael Mizrahi", phone="+972501000003", password_hash=password_hash, preferred_language="he", loyalty_id="L-1003"),
+            User(full_name="Daniel Katz", phone="+972501000004", password_hash=password_hash, preferred_language="en", loyalty_id="L-1004"),
+            User(full_name="Maya Rosen", phone="+972501000005", password_hash=password_hash, preferred_language="en", loyalty_id="L-1005"),
+            User(full_name="Amit Shani", phone="+972501000006", password_hash=password_hash, preferred_language="he", loyalty_id="L-1006"),
+            User(full_name="Tamar Azulay", phone="+972501000007", password_hash=password_hash, preferred_language="he", loyalty_id="L-1007"),
+            User(full_name="Eitan Peretz", phone="+972501000008", password_hash=password_hash, preferred_language="en", loyalty_id="L-1008"),
+            User(full_name="Lior Bar", phone="+972501000009", password_hash=password_hash, preferred_language="en", loyalty_id="L-1009"),
+            User(full_name="Shira Gold", phone="+972501000010", password_hash=password_hash, preferred_language="he", loyalty_id="L-1010"),
         ]
         db.add_all(users)
 

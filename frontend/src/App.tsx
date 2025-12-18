@@ -1,14 +1,18 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { getToken, getUser, logout } from "./lib/auth";
 import { parseSseStream } from "./lib/sse";
 import "./App.css";
 
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
-export default function App() {
+export default function Chat() {
+  const navigate = useNavigate();
   const apiBase = useMemo(
     () => import.meta.env.VITE_API_BASE_URL || "http://localhost:8000",
     []
   );
+  const user = getUser();
 
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
@@ -20,7 +24,9 @@ export default function App() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
-  const [localeHint, setLocaleHint] = useState<"auto" | "en" | "he">("auto");
+  const [localeHint, setLocaleHint] = useState<"en" | "he">(
+    (user?.preferred_language as "en" | "he") || "en"
+  );
 
   async function send() {
     const text = input.trim();
@@ -34,18 +40,33 @@ export default function App() {
     // Add a streaming assistant message placeholder.
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
 
+    const token = getToken();
+    if (!token) {
+      navigate("/", { replace: true });
+      return;
+    }
+
     const res = await fetch(`${apiBase}/chat/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({
         messages: nextMessages,
-        localeHint: localeHint === "auto" ? null : localeHint,
+        localeHint: localeHint,
       }),
     });
 
     if (!res.ok || !res.body) {
       setIsStreaming(false);
       setToolStatus(null);
+      if (res.status === 401) {
+        // Token expired or invalid
+        logout();
+        navigate("/", { replace: true });
+        return;
+      }
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: `Error: ${res.status} ${res.statusText}` },
@@ -105,18 +126,27 @@ export default function App() {
       <header className="topbar">
         <div className="title">Rotem&apos;s Pharmacy Agent</div>
         <div className="controls">
+          {user && <span className="user-info">{user.full_name}</span>}
           <select
             value={localeHint}
-            onChange={(e) => setLocaleHint(e.target.value as "auto" | "en" | "he")}
+            onChange={(e) => setLocaleHint(e.target.value as "en" | "he")}
             disabled={isStreaming}
             aria-label="Language"
           >
-            <option value="auto">Auto</option>
             <option value="en">English</option>
             <option value="he">עברית</option>
           </select>
           <button onClick={reset} disabled={isStreaming}>
             Reset
+          </button>
+          <button
+            onClick={() => {
+              logout();
+              navigate("/", { replace: true });
+            }}
+            disabled={isStreaming}
+          >
+            Logout
           </button>
         </div>
       </header>
