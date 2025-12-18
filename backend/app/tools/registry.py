@@ -8,6 +8,7 @@ from app.tools.tool_impl import (
     check_inventory,
     check_prescription_requirement,
     create_prescription_request,
+    get_current_user,
     get_medication_by_name,
     get_user_by_phone,
     reserve_inventory,
@@ -22,6 +23,7 @@ TOOL_NAME_TO_FN: Dict[str, ToolFn] = {
     "check_inventory": check_inventory,
     "check_prescription_requirement": check_prescription_requirement,
     "get_user_by_phone": get_user_by_phone,
+    "get_current_user": get_current_user,
     "create_prescription_request": create_prescription_request,
     "reserve_inventory": reserve_inventory,
 }
@@ -79,6 +81,18 @@ OPENAI_TOOLS: List[Dict[str, Any]] = [
                 "type": "object",
                 "properties": {"phone": {"type": "string"}},
                 "required": ["phone"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_user",
+            "description": "Get information about the currently authenticated user. Use this for prescription requests instead of asking for phone number.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
                 "additionalProperties": False,
             },
         },

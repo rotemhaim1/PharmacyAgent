@@ -112,6 +112,30 @@ def get_user_by_phone(db: Session, args: Dict[str, Any]) -> Dict[str, Any]:
     return {"found": True, "user": {"id": user.id, "full_name": user.full_name, "preferred_language": user.preferred_language}}
 
 
+def get_current_user(db: Session, args: Dict[str, Any], user_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Return the authenticated user's information.
+    user_id is passed from the JWT token by the agent loop.
+    """
+    if not user_id:
+        return {"found": False, "user": None, "error": "authentication_required"}
+    
+    user = db.get(User, user_id)
+    if not user:
+        return {"found": False, "user": None, "error": "user_not_found"}
+    
+    return {
+        "found": True,
+        "user": {
+            "id": user.id,
+            "full_name": user.full_name,
+            "phone": user.phone,
+            "preferred_language": user.preferred_language,
+            "loyalty_id": user.loyalty_id,
+        },
+    }
+
+
 def create_prescription_request(db: Session, args: Dict[str, Any]) -> Dict[str, Any]:
     user_id = (args.get("user_id") or "").strip()
     medication_id = (args.get("medication_id") or "").strip()

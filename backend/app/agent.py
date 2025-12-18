@@ -128,10 +128,13 @@ async def stream_chat(
                         if db is None:
                             result = {"error": "db_unavailable"}
                         else:
-                            # Pass user_id to tools that need it (e.g., reserve_inventory)
+                            # Pass user_id to tools that need it
                             if tool_name == "reserve_inventory":
                                 from app.tools.tool_impl import reserve_inventory
                                 result = reserve_inventory(db, args, user_id=user_id)
+                            elif tool_name == "get_current_user":
+                                from app.tools.tool_impl import get_current_user
+                                result = get_current_user(db, args, user_id=user_id)
                             else:
                                 result = fn(db, args)
 

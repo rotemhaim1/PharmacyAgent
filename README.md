@@ -15,7 +15,7 @@ The agent is designed with strict safety guardrails to provide factual informati
 - 🌍 **Bilingual Support**: Full English and Hebrew support with per-user language preferences
 - 🔒 **Secure Authentication**: JWT-based authentication with bcrypt password hashing
 - 📡 **Real-time Streaming**: Server-Sent Events (SSE) for responsive, token-by-token streaming
-- 🛠️ **Tool Execution**: 6 database-backed tools for medication lookup, inventory management, and workflows
+- 🛠️ **Tool Execution**: 7 database-backed tools for medication lookup, inventory management, and workflows
 - 🎯 **Policy Compliance**: Enforced safety guardrails preventing medical advice and diagnosis
 - 🔄 **Stateless Architecture**: Client sends full conversation history; no server-side session storage
 - 💾 **Persistent Storage**: SQLite with automatic seeding, migrations, and volume persistence
@@ -132,7 +132,8 @@ flowchart TB
 **Tool Execution**
 - Tools are synchronous functions that query/mutate SQLite
 - Executed within async context using `asyncio.sleep(0)` for yield points
-- User ID passed explicitly to `reserve_inventory` for tracking
+- User ID passed explicitly to `reserve_inventory` and `get_current_user` from JWT token
+- Agent uses `get_current_user()` to discover authenticated user info for personalized responses
 - Results serialized to JSON and returned to model as tool messages
 
 **Error Handling**
@@ -180,12 +181,19 @@ Six tools implemented with defensive validation:
    - Returns user object or `found: false`
    - Error: `invalid_phone` if too short
 
-5. **`create_prescription_request(user_id: str, medication_id: str, pickup_store?: str)`**
+5. **`get_current_user()`**
+   - Returns authenticated user's information from JWT token
+   - No parameters required (user_id passed automatically from JWT)
+   - Used for prescription requests and reservations instead of asking for phone
+   - Returns: user id, full_name, phone, preferred_language, loyalty_id
+   - Error codes: `authentication_required`, `user_not_found`
+
+6. **`create_prescription_request(user_id: str, medication_id: str, pickup_store?: str)`**
    - Creates ticket record with type `prescription_request`
    - Validates user and medication exist
    - Returns `request_id` and status
 
-6. **`reserve_inventory(medication_id: str, store_name: str, quantity: int, user_id: str)`**
+7. **`reserve_inventory(medication_id: str, store_name: str, quantity: int, user_id: str)`**
    - **Requires authentication**: `user_id` passed from JWT token
    - Decrements inventory quantity atomically
    - Creates ticket record with type `inventory_reservation`
@@ -370,12 +378,13 @@ Below is a detailed mapping of assignment requirements to implementation:
 |-------------|----------------|----------------|-------|
 | Multi-step workflows | Agent loop supports up to 8 tool rounds with conversation accumulation | `backend/app/agent.py` | 52-93 |
 | Bilingual support (EN/HE) | System prompt dynamic language selection + bilingual DB fields | `backend/app/policy.py`<br/>`backend/app/db/models.py` | 5-11<br/>34-35 |
-| Tool calling | 6 tools registered via OpenAI function format with JSON schemas | `backend/app/tools/registry.py`<br/>`backend/app/tools/tool_impl.py` | - |
+| Tool calling | 7 tools registered via OpenAI function format with JSON schemas | `backend/app/tools/registry.py`<br/>`backend/app/tools/tool_impl.py` | - |
 | Policy compliance | Hard safety rules in system prompt; refusal patterns enforced | `backend/app/policy.py` | 15-35 |
 | Streaming responses | SSE via FastAPI `StreamingResponse` with chunked encoding | `backend/app/main.py` | 161-200 |
 | Stateless backend | Client sends full `messages[]` each turn; no session storage | `backend/app/agent.py` | 31-49 |
 | User authentication | JWT + bcrypt for secure password storage and token auth | `backend/app/auth.py`<br/>`backend/app/main.py` | -<br/>162-183 |
 | Docker deployment | Multi-stage build (Node → Python) with compose support | `Dockerfile`<br/>`docker-compose.yml` | - |
+| Authenticated workflows | get_current_user tool uses JWT user_id for personalized responses | `backend/app/agent.py`<br/>`backend/app/tools/tool_impl.py` | 132-138<br/>114-135 |
 | Provide factual info | DB-backed catalog with `label_instructions`, `warnings`, ingredients | `backend/app/db/models.py` | 30-46 |
 | Explain dosage/usage | Agent uses `label_instructions` field from medications table | `backend/app/tools/tool_impl.py` | 176-192 |
 | Check Rx requirements | `check_prescription_requirement` tool with `otc_or_rx` field | `backend/app/tools/tool_impl.py` | 87-98 |
@@ -392,7 +401,7 @@ The project includes comprehensive unit tests:
 
 | Test File | Purpose | Coverage |
 |-----------|---------|----------|
-| `test_tools.py` | Unit tests for all 6 tools with mock DB fixtures | Tool validation, error handling, edge cases |
+| `test_tools.py` | Unit tests for all 7 tools with mock DB fixtures | Tool validation, error handling, edge cases |
 | `test_policy.py` | System prompt generation for en/he locales | Language selection, prompt structure |
 | `test_agent_no_api_key.py` | Graceful error handling when API key missing | Error surfacing via SSE |
 | `conftest.py` | Pytest fixtures for test database and mock data | Reusable test fixtures |
@@ -572,8 +581,10 @@ python delete_db_records.py
    - `check_inventory(medication_id=..., store_name="Tel Aviv - Dizengoff")`
 3. Agent: "Tel Aviv - Dizengoff has **12 units in stock** (in_stock status)."
 4. User: "Reserve 1 for pickup."
-5. Agent calls `reserve_inventory(medication_id=..., store_name="Tel Aviv - Dizengoff", quantity=1, user_id=<from_jwt>)`
-6. Agent confirms: "Reservation created with ID: `abc123...`"
+5. Agent calls:
+   - `get_current_user()` (to personalize confirmation)
+   - `reserve_inventory(medication_id=..., store_name="Tel Aviv - Dizengoff", quantity=1)`
+6. Agent: "I've reserved 1 unit of Ibuprofen for you, [User Name], at Tel Aviv - Dizengoff. Reservation ID: `abc123...`"
 
 **Example (Hebrew)**
 1. משתמש: "יש איבופרופן במלאי בתל אביב - דיזנגוף?"
@@ -593,12 +604,12 @@ python delete_db_records.py
 2. Agent calls:
    - `get_medication_by_name(query="amoxicillin")`
    - `check_prescription_requirement(medication_id=...)`
-3. Agent: "Yes, Amoxicillin 500mg requires a prescription (Rx). Would you like me to create a prescription request? I'll need your phone number."
-4. User: "+972501000001"
+3. Agent: "Yes, Amoxicillin 500mg requires a prescription (Rx). Would you like me to create a request?"
+4. User: "Yes, please"
 5. Agent calls:
-   - `get_user_by_phone(phone="+972501000001")`
+   - `get_current_user()` (gets authenticated user's info automatically)
    - `create_prescription_request(user_id=..., medication_id=..., pickup_store="...")`
-6. Agent: "Prescription request created with ID: `xyz789...`. A pharmacist will review it shortly."
+6. Agent: "I've created a prescription request for you, [User Name]. Request ID: `xyz789...`. A pharmacist will review it shortly."
 
 ### Flow C — Usage Instructions + Policy-Compliant Refusal
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getToken, getUser, logout } from "./lib/auth";
 import { parseSseStream } from "./lib/sse";
@@ -13,6 +13,7 @@ export default function Chat() {
     []
   );
   const user = getUser();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
@@ -27,6 +28,10 @@ export default function Chat() {
   const [localeHint, setLocaleHint] = useState<"en" | "he">(
     (user?.preferred_language as "en" | "he") || "en"
   );
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   async function send() {
     const text = input.trim();
@@ -158,6 +163,7 @@ export default function Chat() {
               <div className="bubble">{m.content}</div>
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         <div className="status">
