@@ -7,20 +7,24 @@ export interface AuthUser {
   preferred_language: string;
 }
 
+// Use sessionStorage instead of localStorage so tokens are cleared when tab closes
+// This prevents caching issues and ensures fresh login on new tabs
+const storage = sessionStorage;
+
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return storage.getItem(TOKEN_KEY);
 }
 
 export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+  storage.setItem(TOKEN_KEY, token);
 }
 
 export function removeToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
+  storage.removeItem(TOKEN_KEY);
 }
 
 export function getUser(): AuthUser | null {
-  const userStr = localStorage.getItem(USER_KEY);
+  const userStr = storage.getItem(USER_KEY);
   if (!userStr) return null;
   try {
     return JSON.parse(userStr);
@@ -30,11 +34,11 @@ export function getUser(): AuthUser | null {
 }
 
 export function setUser(user: AuthUser): void {
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  storage.setItem(USER_KEY, JSON.stringify(user));
 }
 
 export function removeUser(): void {
-  localStorage.removeItem(USER_KEY);
+  storage.removeItem(USER_KEY);
 }
 
 export function isAuthenticated(): boolean {

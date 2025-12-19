@@ -15,6 +15,15 @@ export default function Chat() {
   const user = getUser();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Verify authentication on mount
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      logout();
+      navigate("/", { replace: true });
+    }
+  }, [navigate]);
+
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
       role: "assistant",

@@ -4,10 +4,11 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
@@ -48,6 +49,30 @@ class AuthResponse(BaseModel):
     preferred_language: str
 
 
+class NoCacheHTMLMiddleware(BaseHTTPMiddleware):
+    """Middleware to add no-cache headers to HTML files and prevent caching."""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        # Add no-cache headers for HTML files and static assets
+        content_type = response.headers.get("content-type", "")
+        path = request.url.path
+        
+        # Apply to HTML files and JS/CSS assets
+        if (content_type.startswith("text/html") or 
+            path.endswith(".js") or 
+            path.endswith(".css") or
+            path.endswith(".html")):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            # Remove ETag and Last-Modified headers to prevent conditional requests
+            if "ETag" in response.headers:
+                del response.headers["ETag"]
+            if "Last-Modified" in response.headers:
+                del response.headers["Last-Modified"]
+        return response
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Pharmacy Agent API", version="0.1.0")
 
@@ -59,6 +84,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # Add no-cache middleware for HTML files and static assets
+    app.add_middleware(NoCacheHTMLMiddleware)
 
     @app.get("/health")
     async def health() -> Dict[str, Any]:
