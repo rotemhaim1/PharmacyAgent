@@ -19,8 +19,9 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 
 COPY backend/ /app/backend/
 COPY --from=frontend_build /work/frontend/dist /app/frontend_dist
-COPY api-key.txt /app/api-key.txt
 COPY entrypoint.sh /app/entrypoint.sh
+# Note: api-key.txt is optional fallback. Prefer OPENAI_API_KEY env var from docker-compose.yml
+# COPY api-key.txt /app/api-key.txt
 RUN tr -d '\r' < /app/entrypoint.sh > /app/entrypoint.sh.tmp && mv /app/entrypoint.sh.tmp /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 EXPOSE 8000

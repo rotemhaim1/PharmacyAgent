@@ -21,6 +21,9 @@ Thumbs.db
 
 # Local data / secrets
 api-key.txt
+.env
+.env.local
+.env.*.local
 backend/app.db
 backend/*.db
 backend/data/

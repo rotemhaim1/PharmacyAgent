@@ -4,6 +4,8 @@ services:
     image: pharmacy-agent:latest
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       # Persist DB in a named Docker volume
       - DATABASE_URL=sqlite:////data/app.db
