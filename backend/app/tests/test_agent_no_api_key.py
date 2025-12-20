@@ -11,7 +11,7 @@ def test_agent_stream_errors_without_key(monkeypatch):
     async def _collect():
         # db is unused when key is missing; pass None and rely on early return
         chunks = []
-        async for c in stream_chat(db=None, messages=[{"role": "user", "content": "hi"}], locale_hint="en"):
+        async for c in stream_chat(db=None, messages=[{"role": "user", "content": "hi"}], locale_hint="en", user_id="test-user-id"):
             chunks.append(c.decode("utf-8"))
         return "".join(chunks)
 

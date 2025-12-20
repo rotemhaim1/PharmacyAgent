@@ -156,7 +156,9 @@ def test_check_prescription_requirement():
 
 def test_get_user_by_phone_and_create_request_and_reserve():
     db = _make_db()
-    user = User(full_name="Test User", phone="+972501234567", preferred_language="en", loyalty_id=None)
+    import bcrypt
+    password_hash = bcrypt.hashpw("test123".encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    user = User(full_name="Test User", phone="+972501234567", password_hash=password_hash, preferred_language="en", loyalty_id=None)
     med = Medication(
         name="Amoxicillin",
         name_he="אמוקסיצילין",
@@ -181,7 +183,7 @@ def test_get_user_by_phone_and_create_request_and_reserve():
     assert req["status"] == "created"
     assert req["request_id"]
 
-    res1 = reserve_inventory(db, {"medication_id": med.id, "store_name": "Tel Aviv - Dizengoff", "quantity": 2})
+    res1 = reserve_inventory(db, {"medication_id": med.id, "store_name": "Tel Aviv - Dizengoff", "quantity": 2}, user_id=user.id)
     assert res1["reserved"] is True
     assert res1["reservation_id"]
 

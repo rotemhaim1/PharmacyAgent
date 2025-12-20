@@ -60,7 +60,7 @@ The agent is designed with strict safety guardrails to provide factual informati
 ### Deployment
 - **Docker**: Multi-stage build (Node 20 Alpine → Python 3.11 Slim) for optimized image size
 - **Docker Compose**: Named volumes for database persistence across container restarts
-- **Entrypoint Script**: Automatic OpenAI API key loading from file or environment
+- **Environment Variables**: API key loaded from `.env` file via `env_file` in docker-compose.yml
 
 ## Architecture
 
@@ -95,7 +95,7 @@ flowchart TB
 1. **Authentication**
    - User submits credentials via `/auth/login` or `/auth/signup`
    - Backend validates credentials, generates JWT token with 24-hour expiration
-   - Frontend stores token in localStorage and redirects to chat page
+   - Frontend stores token in sessionStorage and redirects to chat page
 
 2. **Chat Request**
    - Frontend sends full conversation history to `/chat/stream` with JWT in `Authorization: Bearer <token>` header
@@ -309,8 +309,9 @@ def get_user_id_from_token(token: str) -> Optional[str]:
 ```
 
 **Frontend Security**
-- JWT stored in `localStorage` (key: `pharmacy_token`)
+- JWT stored in `sessionStorage` (key: `pharmacy_token`)
 - User info stored alongside (key: `pharmacy_user`)
+- Tokens automatically cleared when browser tab closes
 - Authorization header: `Bearer <token>`
 - Automatic logout on 401 responses
 - Protected routes via `<ProtectedRoute>` wrapper:
@@ -672,8 +673,9 @@ pytest app/tests/test_tools.py -v
 # Install dependencies
 python -m pip install -r backend/requirements.txt
 
-# Set OpenAI API key (or create api-key.txt in repo root)
-export OPENAI_API_KEY="sk-..."
+# Set OpenAI API key in .env file (see .env.example)
+# Create .env file with: OPENAI_API_KEY=sk-...
+# Or set environment variable: export OPENAI_API_KEY="sk-..."
 
 # Run server
 cd backend
@@ -700,7 +702,11 @@ Access the app at `http://localhost:5173` (Vite dev server) or `http://localhost
 **Docker Compose (Persistent Database)**
 
 ```bash
-# Start services with volume persistence
+# 1. Create .env file with your OpenAI API key
+# Create .env file in project root with:
+# OPENAI_API_KEY=sk-your-api-key-here
+
+# 2. Start services with volume persistence
 docker compose up --build
 
 # Stop services
@@ -709,6 +715,8 @@ docker compose down
 # Reset database (removes volume)
 docker compose down -v
 ```
+
+**Note:** The `.env` file is automatically loaded by Docker Compose and is gitignored for security. Never commit your API key to the repository.
 
 ## Multi-step Flow Demonstrations
 
@@ -826,10 +834,45 @@ Test with prompts designed to elicit medical advice:
 
 ### Screenshots
 
-Capture 2-3 screenshots showing:
-1. Tool-using stock check + reservation flow (Flow A)
-2. Rx requirement + prescription request flow (Flow B)
-3. Refusal to provide medical advice with redirect (Flow C)
+The following screenshots demonstrate the key features and workflows of the Pharmacy Agent:
+
+#### Authentication Pages
+
+![Login Page](screenshots/Login_Page_Screenshot.png)
+
+*Login page with phone number and password fields. Users can authenticate to access the pharmacy agent chat interface.*
+
+![Signup Page](screenshots/Signup_Page_Screenshot.png)
+
+*Signup page for new user registration. Users can create an account with full name, phone number, password, and preferred language (English/Hebrew).*
+
+#### Flow A - Stock Check + Reservation
+
+![Flow A: Stock Check and Reservation](screenshots/screenshot-flow-a-stock-reservation.png)
+
+*Demonstrates medication lookup, inventory checking with tool status indicators, and successful inventory reservation. Shows the agent using `get_medication_by_name`, `check_inventory`, and `reserve_inventory` tools in sequence.*
+
+#### Flow B - Prescription Requirement + Request
+
+![Flow B: Prescription Request](screenshots/screenshot-flow-b-prescription-request.png)
+
+*Demonstrates prescription requirement checking and prescription request creation. Shows the agent using `get_medication_by_name`, `check_prescription_requirement`, `get_current_user`, and `create_prescription_request` tools.*
+
+#### Flow C - Policy Compliance (Medical Advice Refusal)
+
+![Flow C: Policy Compliance - Part 1](screenshots/screenshot-flow-c-policy-refusal1.png)
+
+![Flow C: Policy Compliance - Part 2](screenshots/screenshot-flow-c-policy-refusal2.png)
+
+*Demonstrates the agent's policy-compliant refusal to provide medical advice. Shows the three-part refusal pattern: acknowledgment of limitation, redirect to licensed professional, and offer of factual alternatives.*
+
+#### Hebrew Language Support
+
+![Hebrew Language Demo - Part 1](screenshots/screenshot-hebrew-demo1.png)
+
+![Hebrew Language Demo - Part 2](screenshots/screenshot-hebrew-demo2.png)
+
+*Demonstrates the agent's bilingual capabilities with Hebrew language responses. Shows the agent responding in Hebrew when the user's preferred language is set to Hebrew, including Hebrew medication names (e.g., "פרצטמול", "איבופרופן") and full conversation flow in Hebrew. Example conversation: User asks "שלום, יש לך פרצטמול במלאי?" (Hello, do you have paracetamol in stock?) and the agent responds entirely in Hebrew with tool status indicators visible.*
 
 ---
 
