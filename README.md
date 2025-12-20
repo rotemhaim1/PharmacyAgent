@@ -10,17 +10,13 @@ The agent is designed with strict safety guardrails to provide factual informati
 
 ## Video Demonstration
 
-<iframe width="560" height="315" src="https://www.loom.com/embed/e3d47f91dd9241caa60728dfdfee3c9f" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
-
-**Watch the full demo:** [https://www.loom.com/share/e3d47f91dd9241caa60728dfdfee3c9f](https://www.loom.com/share/e3d47f91dd9241caa60728dfdfee3c9f)
+**🎥 [Watch the full demo video on Loom](https://www.loom.com/share/e3d47f91dd9241caa60728dfdfee3c9f)**
 
 This walkthrough demonstration showcases:
 - User authentication and login flow
-- Multi-step workflows (stock check, reservations, prescription requests)
+- Multi-step workflows (stock check, reservations)
 - Tool execution with real-time status indicators
 - Bilingual support (English and Hebrew conversations)
-- Policy compliance and medical advice refusal patterns
-- Streaming responses and tool calling in action
 
 ## Features
 
