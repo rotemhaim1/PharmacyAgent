@@ -911,6 +911,3 @@ The following screenshots demonstrate the key features and workflows of the Phar
 
 ---
 
-**Built with ❤️ for the Wonderful AI Home Assignment**
-
-For questions or issues, check the [issue tracker](https://github.com/your-repo/issues) or contact the maintainer.
