@@ -8,6 +8,20 @@ This project implements an AI-powered pharmacy assistant that helps users with m
 
 The agent is designed with strict safety guardrails to provide factual information only, refusing medical advice and redirecting users to licensed healthcare professionals when appropriate.
 
+## Video Demonstration
+
+<iframe width="560" height="315" src="https://www.loom.com/embed/e3d47f91dd9241caa60728dfdfee3c9f" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+
+**Watch the full demo:** [https://www.loom.com/share/e3d47f91dd9241caa60728dfdfee3c9f](https://www.loom.com/share/e3d47f91dd9241caa60728dfdfee3c9f)
+
+This walkthrough demonstration showcases:
+- User authentication and login flow
+- Multi-step workflows (stock check, reservations, prescription requests)
+- Tool execution with real-time status indicators
+- Bilingual support (English and Hebrew conversations)
+- Policy compliance and medical advice refusal patterns
+- Streaming responses and tool calling in action
+
 ## Features
 
 ### Core Capabilities
@@ -57,10 +71,83 @@ The agent is designed with strict safety guardrails to provide factual informati
 - **Seed Data**: 10 users, 5 medications, inventory across 3 stores, sample prescriptions
 - **Migrations**: Automatic schema migrations (e.g., password_hash column) via startup hooks
 
-### Deployment
-- **Docker**: Multi-stage build (Node 20 Alpine → Python 3.11 Slim) for optimized image size
-- **Docker Compose**: Named volumes for database persistence across container restarts
-- **Environment Variables**: API key loaded from `.env` file via `env_file` in docker-compose.yml
+## How to Run
+
+### Quick Start (Docker) - Recommended
+
+The easiest way to run the Pharmacy Agent is using Docker Compose:
+
+**Prerequisites:**
+- Docker and Docker Compose installed
+- OpenAI API key
+
+**Steps:**
+
+1. **Create `.env` file** in the project root:
+   ```bash
+   OPENAI_API_KEY=sk-your-api-key-here
+   ```
+
+2. **Start the application:**
+   ```bash
+   docker compose up --build
+   ```
+
+3. **Access the application:**
+   - Open your browser to `http://localhost:8000`
+   - Login with test user: Phone `+972501000001`, Password `password123`
+
+**Useful Commands:**
+```bash
+# Stop services
+docker compose down
+
+# Reset database (removes volume)
+docker compose down -v
+
+# View logs
+docker compose logs -f
+```
+
+**Note:** The `.env` file is automatically loaded by Docker Compose and is gitignored for security. Never commit your API key to the repository.
+
+### Local Development Setup
+
+For development without Docker, you can run the backend and frontend separately:
+
+**Prerequisites:**
+- Python 3.11+
+- Node.js 20+
+- OpenAI API key
+
+**Backend:**
+```bash
+# Install dependencies
+python -m pip install -r backend/requirements.txt
+
+# Set OpenAI API key in .env file or environment variable
+# Create .env file with: OPENAI_API_KEY=sk-...
+# Or: export OPENAI_API_KEY="sk-..."
+
+# Run server
+cd backend
+uvicorn app.main:app --reload --port 8000
+```
+
+**Frontend:**
+```bash
+# Install dependencies
+cd frontend
+npm install
+
+# Run dev server (with HMR)
+npm run dev
+
+# Optional: Set custom API URL
+export VITE_API_BASE_URL="http://localhost:8000"
+```
+
+Access the app at `http://localhost:5173` (Vite dev server) or `http://localhost:8000` (if running full stack with built frontend).
 
 ## Architecture
 
@@ -661,62 +748,14 @@ pytest app/tests/test_tools.py -v
 
 ## Development
 
-### Local Setup
+For development and contribution, see the [How to Run](#how-to-run) section above for setup instructions.
 
-**Prerequisites**
-- Python 3.11+
-- Node.js 20+
-- OpenAI API key
-
-**Backend**
-```bash
-# Install dependencies
-python -m pip install -r backend/requirements.txt
-
-# Set OpenAI API key in .env file (see .env.example)
-# Create .env file with: OPENAI_API_KEY=sk-...
-# Or set environment variable: export OPENAI_API_KEY="sk-..."
-
-# Run server
-cd backend
-uvicorn app.main:app --reload --port 8000
-```
-
-**Frontend**
-```bash
-# Install dependencies
-cd frontend
-npm install
-
-# Run dev server (with HMR)
-npm run dev
-
-# Optional: Set custom API URL
-export VITE_API_BASE_URL="http://localhost:8000"
-```
-
-Access the app at `http://localhost:5173` (Vite dev server) or `http://localhost:8000` (if running full stack).
-
-### Docker Deployment
-
-**Docker Compose (Persistent Database)**
-
-```bash
-# 1. Create .env file with your OpenAI API key
-# Create .env file in project root with:
-# OPENAI_API_KEY=sk-your-api-key-here
-
-# 2. Start services with volume persistence
-docker compose up --build
-
-# Stop services
-docker compose down
-
-# Reset database (removes volume)
-docker compose down -v
-```
-
-**Note:** The `.env` file is automatically loaded by Docker Compose and is gitignored for security. Never commit your API key to the repository.
+**Additional Development Notes:**
+- The project uses Python 3.11+ and Node.js 20+
+- Backend uses FastAPI with hot-reload support (`--reload` flag)
+- Frontend uses Vite with HMR (Hot Module Replacement) for instant updates
+- Database migrations are handled automatically on startup
+- See [Testing](#testing) section below for running tests
 
 ## Multi-step Flow Demonstrations
 
